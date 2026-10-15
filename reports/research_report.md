@@ -61,7 +61,7 @@ Na podstawie cen obliczam dzienne stopy zwrotu:
 
 \[
 
-r*t = \frac{P_t}{P*{t-1}} - 1
+r_t = \frac{P_t}{P_{t-1}} - 1
 
 \]
 
@@ -69,7 +69,7 @@ Celem prognozy jest pierwiastek z sumy kwadratów stóp zwrotu z kolejnych pięc
 
 \[
 
-Y*t = \sqrt{\sum*{i=1}^{5} r\_{t+i}^{2}}
+Y_t = \sqrt{\sum_{i=1}^{5} r_{t+i}^{2}}
 
 \]
 
@@ -112,11 +112,8 @@ Dodatkowo przeprowadzam ewaluację w czterech kolejnych oknach chronologicznych.
 ## 7. Wynik główny: Ridge kontra metoda bazowa
 
 | Metoda            |      MAE |
-
 | ----------------- | -------: |
-
 | Metoda bazowa     | 0,008005 |
-
 | Ridge — pięć cech | 0,006306 |
 
 Ridge uzyskał na głównym teście MAE niższy o **21,22%** względem baseline'u. To zachęcający wynik, ale sam w sobie nie wyjaśnia, które cechy są przydatne ani czy różnica będzie utrzymywać się w przyszłości.
@@ -128,11 +125,8 @@ Porównałem pełny model Ridge z wariantem pozbawionym wyłącznie cechy `Volat
 ### Główny test
 
 | Wariant                    |      MAE |
-
 | -------------------------- | -------: |
-
 | Ridge — wszystkie cechy    | 0,006306 |
-
 | Ridge bez `Volatility_20d` | 0,006576 |
 
 Po usunięciu cechy MAE wzrósł o **4,28%** względem pełnego modelu.
@@ -140,15 +134,10 @@ Po usunięciu cechy MAE wzrósł o **4,28%** względem pełnego modelu.
 ### Kolejne okna chronologiczne
 
 | Okres testowy | MAE pełnego Ridge | MAE bez `Volatility_20d` | Zmiana MAE po usunięciu |
-
 | ------------- | ----------------: | -----------------------: | ----------------------: |
-
 | 2021–2022     |          0,007718 |                 0,008008 |                  +3,75% |
-
 | 2022–2023     |          0,005534 |                 0,006091 |                 +10,07% |
-
 | 2023–2024     |          0,004781 |                 0,005009 |                  +4,77% |
-
 | 2024–2025     |          0,007833 |                 0,008108 |                  +3,52% |
 
 We wszystkich czterech oknach usunięcie cechy pogorszyło wynik. Średni wzrost MAE w tych oknach wyniósł **5,53%**.
@@ -160,15 +149,10 @@ Wyniki **wspierają hipotezę**, że `Volatility_20d` wnosi użyteczną informac
 ## 9. Dodatkowa ewaluacja Ridge w czasie
 
 | Okres testowy | MAE baseline'u | MAE Ridge | Poprawa względem baseline'u |
-
 | ------------- | -------------: | --------: | --------------------------: |
-
 | 2021–2022     |       0,008768 |  0,007718 |                      11,97% |
-
 | 2022–2023     |       0,007640 |  0,005534 |                      27,57% |
-
 | 2023–2024     |       0,006215 |  0,004781 |                      23,06% |
-
 | 2024–2025     |       0,009792 |  0,007833 |                      20,00% |
 
 Ridge uzyskał niższy MAE niż baseline we wszystkich czterech oknach. Średnia poprawa wyniosła **20,65%**, a mediana **21,53%**. To dodatkowy argument, że model jest wart dalszego badania, ale nie jest to niezależne potwierdzenie H1 — okna pochodzą z tej samej serii i częściowo pokrywają się z głównym okresem testowym.
@@ -178,11 +162,8 @@ Ridge uzyskał niższy MAE niż baseline we wszystkich czterech oknach. Średnia
 Podzieliłem obserwacje głównego testu na 20% przypadków o najwyższej zrealizowanej przyszłej zmienności oraz pozostałe 80%.
 
 | Grupa                    | Liczba obserwacji | MAE baseline'u | MAE Ridge |
-
 | ------------------------ | ----------------: | -------------: | --------: |
-
 | Najwyższe 20% zmienności |               110 |       0,017564 |  0,013916 |
-
 | Pozostałe obserwacje     |               439 |       0,005610 |  0,004400 |
 
 Ridge miał niższy błąd w obu grupach, ale błędy były znacznie większe w okresach o najwyższej przyszłej zmienności. Jest to analiza diagnostyczna po fakcie: grupy definiuje rzeczywisty przyszły cel, którego nie znamy w momencie tworzenia prognozy. Nie jest to więc reguła możliwa do bezpośredniego zastosowania w czasie rzeczywistym.
@@ -194,11 +175,8 @@ Aby sprawdzić, czy regularyzacja ma znaczenie, porównałem Ridge i zwykłą re
 ### Główny test
 
 | Model            |         MAE |
-
 | ---------------- | ----------: |
-
 | Regresja liniowa | 0,006306482 |
-
 | Ridge            | 0,006306344 |
 
 Poprawa Ridge wyniosła około **0,00218%** — w praktyce wyniki były niemal identyczne.
@@ -206,15 +184,10 @@ Poprawa Ridge wyniosła około **0,00218%** — w praktyce wyniki były niemal i
 ### Kolejne okna chronologiczne
 
 | Okres testowy | MAE regresji liniowej | MAE Ridge | Poprawa Ridge |
-
 | ------------- | --------------------: | --------: | ------------: |
-
 | 2021–2022     |              0,007730 |  0,007718 |       +0,149% |
-
 | 2022–2023     |              0,005536 |  0,005534 |       +0,040% |
-
 | 2023–2024     |              0,004783 |  0,004781 |       +0,042% |
-
 | 2024–2025     |              0,007832 |  0,007833 |       −0,019% |
 
 Ridge miał niższy MAE w trzech z czterech okien, ale różnice były bardzo małe. W ostatnim oknie minimalnie lepsza była regresja liniowa. Same wyniki punktowe nie dają przekonujących dowodów na praktyczną przewagę Ridge.
@@ -226,13 +199,9 @@ Ponieważ błędy dla kolejnych dni mogą być zależne, do oszacowania niepewno
 Różnicę zdefiniowałem jako MAE regresji liniowej minus MAE Ridge. Wartość dodatnia oznacza przewagę Ridge.
 
 | Długość bloku | 95% przedział dla różnicy MAE | 95% przedział względnej poprawy Ridge |
-
 | ------------: | ----------------------------: | ------------------------------------: |
-
 |             5 |     [−0,00000321; 0,00000291] |                    [−0,052%; +0,047%] |
-
 |            10 |     [−0,00000342; 0,00000300] |                    [−0,052%; +0,050%] |
-
 |            20 |     [−0,00000339; 0,00000265] |                    [−0,047%; +0,047%] |
 
 Wszystkie przedziały obejmują zero. W tej analizie nie ma więc przekonujących dowodów, że Ridge przewyższa zwykłą regresję liniową. Nie jest to dowód, że modele są równoważne; oznacza jedynie, że obserwowana różnica jest bardzo mała względem niepewności oszacowanej tą metodą.

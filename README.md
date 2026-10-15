@@ -32,13 +32,13 @@ Skrypt pobiera dzienne ceny SPY z Yahoo Finance (`yfinance`) dla okresu 2015-01-
 Dzienna prosta stopa zwrotu:
 
 \[
-r*t = \frac{P_t}{P*{t-1}} - 1
+r_t = \frac{P_t}{P_{t-1}} - 1
 \]
 
 Prognozowany cel to pierwiastek z sumy kwadratów zwrotów z kolejnych pięciu sesji:
 
 \[
-Y*t = \sqrt{\sum*{i=1}^{5} r\_{t+i}^{2}}
+Y_t = \sqrt{\sum_{i=1}^{5} r_{t+i}^{2}}
 \]
 
 To pięciosesyjna miara RSS, a nie klasyczne odchylenie standardowe. Model wykorzystuje pięć cech obliczanych z danych dostępnych do końca dnia `t`: `Volatility_5d`, `Volatility_20d`, `Mean_Return_5d`, `Mean_Return_20d` i `Mean_Absolute_Return_5d`. Baseline to RSS z poprzednich pięciu zwrotów.
