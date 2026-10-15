@@ -1,0 +1,2 @@
+Full_train_rows,Test_rows,Full_train_MAE,Subset_train_fraction,Runs,Subset_MAE_mean,Subset_MAE_std,Mean_difference_pct,Median_difference_pct,Subset_wins
+2187,549,0.006306344330990858,0.8,30,0.006308477074838716,4.280516695620245e-05,0.033819019957030114,-0.0040494823032375254,15
