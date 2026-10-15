@@ -24,21 +24,15 @@ df = pd.read_csv(DATA_PATH, index_col=0, parse_dates=True).sort_index()
 X = df[FEATURES]
 y = df[TARGET]
 
-# Chronological split: train on earlier data, test on later data.
 split_idx = int(len(df) * 0.8)
 
-# Remove five observations before the test period to reduce
-# overlap between training targets and test-period returns.
 train_end = split_idx - 5
 
 X_train, X_test = X.iloc[:train_end], X.iloc[split_idx:]
 y_train, y_test = y.iloc[:train_end], y.iloc[split_idx:]
 
-# Baseline: use the previous 5-session realized volatility
-# to forecast the next 5-session realized volatility.
 baseline = df.loc[X_test.index, "Baseline_Past_5d_RSS"]
 
-# Ridge: scale features using training data only, then fit regression.
 model = make_pipeline(
     StandardScaler(),
     Ridge(alpha=1.0),
@@ -46,7 +40,6 @@ model = make_pipeline(
 model.fit(X_train, y_train)
 predictions = model.predict(X_test)
 
-# Volatility cannot be negative.
 predictions = np.maximum(predictions, 0)
 
 baseline_mae = mean_absolute_error(y_test, baseline)

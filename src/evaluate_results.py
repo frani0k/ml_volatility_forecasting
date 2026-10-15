@@ -7,7 +7,6 @@ from sklearn.metrics import mean_absolute_error
 results_path = Path("reports/test_predictions.csv")
 df = pd.read_csv(results_path, index_col=0, parse_dates=True)
 
-# Define the high-volatility group using the test target.
 threshold = df["Actual"].quantile(0.80)
 df["Regime"] = df["Actual"].apply(
     lambda value: "High volatility (top 20%)"
@@ -30,7 +29,6 @@ for regime, group in df.groupby("Regime"):
     print(f"Ridge MAE:    {ridge_mae:.6f}")
     print(f"Ridge improvement: {improvement:.2f}%")
 
-# Save a comparison chart.
 ax = df[["Actual", "Baseline", "Ridge"]].plot(
     figsize=(12, 6),
     alpha=0.8,

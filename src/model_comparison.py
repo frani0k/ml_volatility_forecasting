@@ -31,7 +31,6 @@ def evaluate_models(train, test, period):
     X_test = test[FEATURES]
     y_test = test[TARGET]
 
-    # Ordinary linear regression.
     linear_model = make_pipeline(
         StandardScaler(),
         LinearRegression(),
@@ -42,7 +41,6 @@ def evaluate_models(train, test, period):
         0,
     )
 
-    # Ridge regression with fixed regularization.
     ridge_model = make_pipeline(
         StandardScaler(),
         Ridge(alpha=1.0),
@@ -66,7 +64,6 @@ def evaluate_models(train, test, period):
         ridge_predictions,
     )
 
-    # Positive values mean Ridge has lower MAE.
     ridge_improvement = (
         (linear_mae - ridge_mae) / linear_mae * 100
     )
@@ -91,7 +88,6 @@ def main():
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Main chronological split, matching train_model.py.
     split_idx = int(len(df) * 0.8)
     train_end = split_idx - 5
 
@@ -124,7 +120,6 @@ def main():
         f"{main_result['Ridge_improvement_vs_linear_pct']:.2f}%"
     )
 
-    # Repeat the comparison on the existing rolling windows.
     initial_train_size = int(len(df) * 0.60)
     test_size = int(len(df) * 0.10)
     step_size = test_size

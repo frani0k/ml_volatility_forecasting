@@ -12,7 +12,6 @@ df = pd.read_csv(FEATURES_PATH, index_col=0, parse_dates=True).sort_index()
 
 returns = prices["Close"].pct_change()
 
-# Rebuild the target independently to verify the saved values.
 future_squared_returns = returns.pow(2).shift(-1)
 expected_target = np.sqrt(
     future_squared_returns.iloc[::-1].rolling(5).sum().iloc[::-1]
@@ -23,7 +22,6 @@ target_error = (
     df["Target_Future_5d_Volatility"] - expected_target
 ).abs()
 
-# Rebuild the baseline independently.
 expected_baseline = np.sqrt(returns.pow(2).rolling(5).sum())
 expected_baseline = expected_baseline.reindex(df.index)
 
@@ -44,7 +42,6 @@ print("Features use returns through the current date.")
 print("Target uses returns from the next five sessions.")
 print("Baseline uses returns from the previous five sessions.")
 
-# Confirm the five-session target is not accidentally equal to the baseline.
 difference = (
     df["Target_Future_5d_Volatility"] - df["Baseline_Past_5d_RSS"]
 ).abs()

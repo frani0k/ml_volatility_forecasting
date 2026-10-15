@@ -7,13 +7,11 @@ import pandas as pd
 DATA_PATH = Path("data/raw/spy_prices.csv")
 OUTPUT_PATH = Path("data/processed/volatility_features.csv")
 
-# Load prices and calculate daily returns.
 df = pd.read_csv(DATA_PATH, index_col=0, parse_dates=True)
 df = df.sort_index()
 
 df["Return"] = df["Close"].pct_change()
 
-# Features: information available at the end of each date.
 df["Volatility_5d"] = df["Return"].rolling(5).std()
 df["Volatility_20d"] = df["Return"].rolling(20).std()
 df["Mean_Return_5d"] = df["Return"].rolling(5).mean()
@@ -21,12 +19,9 @@ df["Mean_Return_20d"] = df["Return"].rolling(20).mean()
 df["Mean_Absolute_Return_5d"] = (
     df["Return"].abs().rolling(5).mean()
 )
-# Baseline: realized volatility over the previous 5 sessions
 df["Baseline_Past_5d_RSS"] = np.sqrt(
     df["Return"].pow(2).rolling(5).sum()
 )
-# Target: realized volatility over the NEXT 5 trading sessions.
-# At date t, this uses returns from t+1 through t+5.
 future_squared_returns = df["Return"].pow(2).shift(-1)
 future_squared_sum = future_squared_returns.iloc[::-1].rolling(5).sum().iloc[::-1]
 

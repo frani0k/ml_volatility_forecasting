@@ -7,7 +7,6 @@ import pandas as pd
 
 
 START_DATE = "2015-01-01"
-# yfinance treats `end` as exclusive, so this includes 2025-12-31.
 END_DATE = "2026-01-01"
 TICKER = "SPY"
 OUTPUT_PATH = Path(__file__).resolve().parents[1] / "data" / "raw" / "spy_prices.csv"
@@ -27,7 +26,6 @@ def flatten_columns(data):
         data = data.xs(TICKER, axis=1, level=ticker_level, drop_level=True)
 
     if isinstance(data.columns, pd.MultiIndex):
-        # Remaining singleton levels carry no information; drop them first.
         for level in reversed(range(data.columns.nlevels)):
             if len(data.columns.get_level_values(level).unique()) == 1:
                 data.columns = data.columns.droplevel(level)

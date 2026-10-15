@@ -38,7 +38,6 @@ def bootstrap_block_ci(
     n_blocks = int(np.ceil(n / block_length))
     rng = np.random.default_rng(random_seed)
 
-    # Sample contiguous blocks of test observations.
     max_start = n - block_length
     starts = rng.integers(
         0,
@@ -54,7 +53,6 @@ def bootstrap_block_ci(
     sampled_linear = linear_errors[indices].mean(axis=1)
     sampled_ridge = ridge_errors[indices].mean(axis=1)
 
-    # Positive differences mean Ridge has lower MAE.
     differences = sampled_linear - sampled_ridge
     improvements_pct = (
         differences / sampled_linear * 100
@@ -95,7 +93,6 @@ def main():
         parse_dates=True,
     ).sort_index()
 
-    # Match the existing main chronological split.
     split_idx = int(len(df) * 0.8)
     train_end = split_idx - 5
 
@@ -126,7 +123,6 @@ def main():
         ridge_model.predict(X_test), 0
     )
 
-    # Save paired predictions so results can be inspected later.
     predictions = pd.DataFrame(
         {
             "Actual": y_test,

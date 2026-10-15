@@ -94,7 +94,6 @@ def main():
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Main chronological test, matching train_model.py.
     split_idx = int(len(df) * 0.8)
     train_end = split_idx - 5
 
@@ -130,7 +129,6 @@ def main():
         index=False,
     )
 
-    # Expanding-window evaluation, matching rolling_evaluation.py.
     initial_train_size = int(len(df) * 0.60)
     test_size = int(len(df) * 0.10)
     step_size = test_size

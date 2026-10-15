@@ -22,8 +22,6 @@ BASELINE = "Baseline_Past_5d_RSS"
 
 df = pd.read_csv(DATA_PATH, index_col=0, parse_dates=True).sort_index()
 
-# Each test window follows its training window in time.
-# A five-row gap reduces overlap between train targets and test returns.
 initial_train_size = int(len(df) * 0.60)
 test_size = int(len(df) * 0.10)
 step_size = test_size
