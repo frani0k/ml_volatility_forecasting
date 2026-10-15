@@ -1,26 +1,18 @@
-from pathlib import Path
-
-import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-
-DATA_PATH = Path("data/processed/volatility_features.csv")
-REPORTS_DIR = Path("reports")
-
-FEATURES = [
-    "Volatility_5d",
-    "Volatility_20d",
-    "Mean_Return_5d",
-    "Mean_Return_20d",
-    "Mean_Absolute_Return_5d",
-]
-
-TARGET = "Target_Future_5d_Volatility"
-BASELINE = "Baseline_Past_5d_RSS"
+from project_paths import FEATURES_PATH, REPORTS_DIR
+from research_utils import (
+    BASELINE,
+    FEATURES,
+    TARGET,
+    chronological_split,
+    clip_nonnegative_predictions,
+    rolling_splits,
+)
 
 
 def evaluate_models(train, test, period):
@@ -36,9 +28,8 @@ def evaluate_models(train, test, period):
         LinearRegression(),
     )
     linear_model.fit(X_train, y_train)
-    linear_predictions = np.maximum(
-        linear_model.predict(X_test),
-        0,
+    linear_predictions = clip_nonnegative_predictions(
+        linear_model.predict(X_test)
     )
 
     ridge_model = make_pipeline(
@@ -46,9 +37,8 @@ def evaluate_models(train, test, period):
         Ridge(alpha=1.0),
     )
     ridge_model.fit(X_train, y_train)
-    ridge_predictions = np.maximum(
-        ridge_model.predict(X_test),
-        0,
+    ridge_predictions = clip_nonnegative_predictions(
+        ridge_model.predict(X_test)
     )
 
     baseline_mae = mean_absolute_error(
@@ -81,18 +71,14 @@ def evaluate_models(train, test, period):
 
 def main():
     df = pd.read_csv(
-        DATA_PATH,
+        FEATURES_PATH,
         index_col=0,
         parse_dates=True,
     ).sort_index()
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    split_idx = int(len(df) * 0.8)
-    train_end = split_idx - 5
-
-    train = df.iloc[:train_end]
-    test = df.iloc[split_idx:]
+    train, test = chronological_split(df)
 
     main_result = evaluate_models(
         train,
@@ -120,18 +106,8 @@ def main():
         f"{main_result['Ridge_improvement_vs_linear_pct']:.2f}%"
     )
 
-    initial_train_size = int(len(df) * 0.60)
-    test_size = int(len(df) * 0.10)
-    step_size = test_size
-
     rolling_results = []
-    start = initial_train_size
-
-    while start + test_size <= len(df):
-        train_end = start - 5
-        train_window = df.iloc[:train_end]
-        test_window = df.iloc[start:start + test_size]
-
+    for train_window, test_window in rolling_splits(df):
         period = (
             f"{test_window.index[0].date()}_"
             f"{test_window.index[-1].date()}"
@@ -148,7 +124,6 @@ def main():
         result["Test_end"] = test_window.index[-1].date()
 
         rolling_results.append(result)
-        start += step_size
 
     rolling_df = pd.DataFrame(rolling_results)
     rolling_df.to_csv(

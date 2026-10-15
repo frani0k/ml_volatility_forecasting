@@ -49,13 +49,13 @@ Wyniki dotyczą jednego instrumentu i jednego zakresu historycznego. Nie zakład
 Na podstawie cen obliczam dzienne stopy zwrotu:
 
 \[
-r*t = \frac{P_t}{P*{t-1}} - 1
+r_t = \frac{P_t}{P_{t-1}} - 1
 \]
 
 Celem prognozy jest pierwiastek z sumy kwadratów stóp zwrotu z kolejnych pięciu sesji:
 
 \[
-Y*t = \sqrt{\sum*{i=1}^{5} r\_{t+i}^{2}}
+Y_t = \sqrt{\sum_{i=1}^{5} r_{t+i}^{2}}
 \]
 
 Miara ta opisuje łączną wielkość ruchów cen w przyszłym pięciosesyjnym okresie. Jest to **pięciosesyjna miara RSS**, a nie klasyczne odchylenie standardowe ani prognoza kierunku ceny.
@@ -86,7 +86,7 @@ Dane dzielę chronologicznie, bez losowego mieszania obserwacji. Główny eksper
 
 Trening kończy się 2023-10-09, a główny test rozpoczyna się 2023-10-17. Metryką główną jest **MAE (Mean Absolute Error)** — średnia wartość bezwzględnego błędu prognozy. Niższy MAE oznacza dokładniejsze prognozy w tej skali celu.
 
-Dodatkowo przeprowadzam ewaluację w czterech kolejnych oknach chronologicznych, z rozszerzanym zbiorem treningowym. Każde okno testowe zawiera 274 obserwacje. Te okna nie są niezależnymi próbami: pochodzą z tej samej serii czasowej, a cele dla sąsiednich dat częściowo się pokrywają. Nie traktuję ich jako czterech niezależnych potwierdzeń statystycznych.
+Dodatkowo przeprowadzam ewaluację w czterech kolejnych oknach chronologicznych. Pierwszy zbiór treningowy stanowi 60% danych, a każde okno testowe około 10%; zbiór treningowy rozszerza się po każdym oknie. Każde okno testowe zawiera 274 obserwacje, a między treningiem i testem pozostaje pięć wierszy odstępu. Te okna nie są niezależnymi próbami: pochodzą z tej samej serii czasowej, a cele dla sąsiednich dat częściowo się pokrywają. Nie traktuję ich jako czterech niezależnych potwierdzeń statystycznych.
 
 ## 7. Wynik główny: Ridge kontra metoda bazowa
 
@@ -189,15 +189,15 @@ Wynik zależy od przyjętej metody bootstrapu i długości bloków. Analiza doty
 
 ## 13. Audyt obliczeń
 
-Skrypt `src/audit_experiment.py` niezależnie odtwarza obliczenia celu oraz metody bazowej. Audyt wykazał:
+Skrypt `src/audit_experiment.py` niezależnie odtwarza wszystkie cechy, cel i metodę bazową na podstawie surowych cen. Kończy się błędem, jeśli daty, kompletność danych lub odtworzone wartości nie przejdą kontroli. Audyt wykazał:
 
 - 2741 obserwacji w przygotowanym zbiorze,
 - brak zduplikowanych dat,
 - prawidłową kolejność dat,
 - brak brakujących wartości,
-- zerowy błąd przy niezależnym odtworzeniu celu i baseline'u.
+- zerowy błąd przy niezależnym odtworzeniu cech, celu i baseline'u.
 
-Skrypt zakończył się komunikatem `PASS`. Sprawdza to podstawową spójność obliczeń, ale nie jest formalnym dowodem braku każdego możliwego rodzaju data leakage. Nadal kluczowe są chronologiczny podział danych i upewnienie się, że cechy są dostępne w momencie prognozy.
+Automatyczne testy jednostkowe sprawdzają definicję zwrotu, wyrównanie celu, brak przyszłych danych w cechach, rekonstrukcję baseline'u, podziały chronologiczne, obcinanie ujemnych prognoz i deterministyczność bootstrapu. Audyt i testy sprawdzają spójność implementacji, ale nie są formalnym dowodem braku każdego możliwego rodzaju data leakage. Nadal kluczowe są chronologiczny podział danych i upewnienie się, że cechy są dostępne w momencie prognozy.
 
 ## 14. Ograniczenia
 
@@ -243,6 +243,9 @@ Najbardziej wartościowe kolejne eksperymenty to:
 - `src/model_comparison.py` — porównanie Ridge ze zwykłą regresją liniową.
 - `src/bootstrap_uncertainty.py` — blokowy bootstrap różnicy błędów.
 - `src/audit_experiment.py` — niezależny audyt obliczeń celu i baseline'u.
+- `src/research_utils.py` — wspólne obliczenia cech, celu i podziałów chronologicznych.
+- `src/project_paths.py` — ścieżki wyznaczane względem repozytorium.
+- `tests/test_research_utils.py` — testy niezmienników metodologicznych w `unittest`.
 
 Najważniejsze zapisane wyniki:
 
@@ -250,5 +253,10 @@ Najważniejsze zapisane wyniki:
 - `reports/rolling_evaluation.csv` — wyniki ewaluacji chronologicznej.
 - `reports/feature_ablation_main.csv` i `reports/feature_ablation_rolling.csv` — wyniki ablacji cechy.
 - `reports/model_comparison_main.csv` i `reports/model_comparison_rolling.csv` — porównanie regresji liniowej i Ridge.
-- `reports/model_comparison_test_predictions.csv` — predykcje obu modeli na głównym teście.
+- `reports/model_comparison_test_predictions.csv` — sparowane predykcje i błędy regresji liniowej oraz Ridge; zapisuje je `src/bootstrap_uncertainty.py`.
 - `reports/bootstrap_uncertainty.csv` — wyniki analizy niepewności bootstrapem.
+- `reports/figures/price_and_volatility.png` i `reports/figures/test_predictions.png` — wykresy diagnostyczne.
+
+## 18. Powtarzalność
+
+Projekt sprawdzono na **CPython 3.14.0**; bezpośrednie zależności i ich wersje znajdują się w `requirements.txt`. Polecenia uruchomieniowe dla Windows PowerShell, w tym testy i audyt, są podane w README. Surowe i przetworzone dane pozostają lokalne i są ignorowane przez Git; pobranie z Yahoo Finance może w przyszłości zwrócić skorygowaną historię.

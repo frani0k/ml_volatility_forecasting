@@ -1,26 +1,18 @@
-from pathlib import Path
-
-import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-
-DATA_PATH = Path("data/processed/volatility_features.csv")
-REPORTS_DIR = Path("reports")
-
-TARGET = "Target_Future_5d_Volatility"
-BASELINE = "Baseline_Past_5d_RSS"
-
-FEATURES_FULL = [
-    "Volatility_5d",
-    "Volatility_20d",
-    "Mean_Return_5d",
-    "Mean_Return_20d",
-    "Mean_Absolute_Return_5d",
-]
+from project_paths import FEATURES_PATH, REPORTS_DIR
+from research_utils import (
+    BASELINE,
+    FEATURES as FEATURES_FULL,
+    TARGET,
+    clip_nonnegative_predictions,
+    chronological_split,
+    rolling_splits,
+)
 
 FEATURES_WITHOUT_20D = [
     feature
@@ -38,10 +30,7 @@ def fit_and_evaluate(train, test, features):
 
     model.fit(train[features], train[TARGET])
 
-    predictions = np.maximum(
-        model.predict(test[features]),
-        0,
-    )
+    predictions = clip_nonnegative_predictions(model.predict(test[features]))
 
     mae = mean_absolute_error(
         test[TARGET],
@@ -87,18 +76,14 @@ def compare_models(train, test, period_name):
 
 def main():
     df = pd.read_csv(
-        DATA_PATH,
+        FEATURES_PATH,
         index_col=0,
         parse_dates=True,
     ).sort_index()
 
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
-    split_idx = int(len(df) * 0.8)
-    train_end = split_idx - 5
-
-    train = df.iloc[:train_end]
-    test = df.iloc[split_idx:]
+    train, test = chronological_split(df)
 
     main_result = compare_models(
         train,
@@ -129,18 +114,8 @@ def main():
         index=False,
     )
 
-    initial_train_size = int(len(df) * 0.60)
-    test_size = int(len(df) * 0.10)
-    step_size = test_size
-
     rolling_results = []
-    start = initial_train_size
-
-    while start + test_size <= len(df):
-        train_end = start - 5
-        train_window = df.iloc[:train_end]
-        test_window = df.iloc[start:start + test_size]
-
+    for train_window, test_window in rolling_splits(df):
         period_name = (
             f"{test_window.index[0].date()}_"
             f"{test_window.index[-1].date()}"
@@ -157,7 +132,6 @@ def main():
         result["Test_end"] = test_window.index[-1].date()
 
         rolling_results.append(result)
-        start += step_size
 
     rolling_df = pd.DataFrame(rolling_results)
     rolling_path = REPORTS_DIR / "feature_ablation_rolling.csv"

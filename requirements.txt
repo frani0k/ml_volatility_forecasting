@@ -1,5 +1,5 @@
-﻿pandas
-numpy
-matplotlib
-scikit-learn
-yfinance
+matplotlib==3.11.2
+numpy==2.5.4
+pandas==3.0.6
+scikit-learn==1.9.1
+yfinance==1.7.0

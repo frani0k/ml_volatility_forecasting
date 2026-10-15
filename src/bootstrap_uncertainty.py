@@ -1,5 +1,3 @@
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression, Ridge
@@ -7,19 +5,14 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
+from project_paths import FEATURES_PATH, REPORTS_DIR
+from research_utils import (
+    FEATURES,
+    TARGET,
+    chronological_split,
+    clip_nonnegative_predictions,
+)
 
-DATA_PATH = Path("data/processed/volatility_features.csv")
-REPORTS_DIR = Path("reports")
-
-FEATURES = [
-    "Volatility_5d",
-    "Volatility_20d",
-    "Mean_Return_5d",
-    "Mean_Return_20d",
-    "Mean_Absolute_Return_5d",
-]
-
-TARGET = "Target_Future_5d_Volatility"
 
 N_BOOTSTRAPS = 5000
 BLOCK_LENGTHS = [5, 10, 20]
@@ -34,6 +27,17 @@ def bootstrap_block_ci(
     random_seed=RANDOM_SEED,
 ):
     """Estimate uncertainty in paired MAE differences using block bootstrap."""
+    linear_errors = np.asarray(linear_errors)
+    ridge_errors = np.asarray(ridge_errors)
+    if linear_errors.ndim != 1 or ridge_errors.ndim != 1:
+        raise ValueError("Error inputs must be one-dimensional arrays.")
+    if linear_errors.size == 0 or linear_errors.shape != ridge_errors.shape:
+        raise ValueError("Error inputs must be non-empty arrays of equal length.")
+    if not 1 <= block_length <= len(linear_errors):
+        raise ValueError("block_length must be between 1 and the number of errors.")
+    if n_bootstraps < 1:
+        raise ValueError("n_bootstraps must be at least 1.")
+
     n = len(linear_errors)
     n_blocks = int(np.ceil(n / block_length))
     rng = np.random.default_rng(random_seed)
@@ -88,16 +92,12 @@ def main():
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
     df = pd.read_csv(
-        DATA_PATH,
+        FEATURES_PATH,
         index_col=0,
         parse_dates=True,
     ).sort_index()
 
-    split_idx = int(len(df) * 0.8)
-    train_end = split_idx - 5
-
-    train = df.iloc[:train_end]
-    test = df.iloc[split_idx:]
+    train, test = chronological_split(df)
 
     X_train = train[FEATURES]
     y_train = train[TARGET]
@@ -116,11 +116,11 @@ def main():
     linear_model.fit(X_train, y_train)
     ridge_model.fit(X_train, y_train)
 
-    linear_predictions = np.maximum(
-        linear_model.predict(X_test), 0
+    linear_predictions = clip_nonnegative_predictions(
+        linear_model.predict(X_test)
     )
-    ridge_predictions = np.maximum(
-        ridge_model.predict(X_test), 0
+    ridge_predictions = clip_nonnegative_predictions(
+        ridge_model.predict(X_test)
     )
 
     predictions = pd.DataFrame(

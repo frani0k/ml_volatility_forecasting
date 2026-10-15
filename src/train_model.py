@@ -1,68 +1,67 @@
-
-from pathlib import Path
-
-import numpy as np
 import pandas as pd
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
-DATA_PATH = Path("data/processed/volatility_features.csv")
-
-FEATURES = [
-    "Volatility_5d",
-    "Volatility_20d",
-    "Mean_Return_5d",
-    "Mean_Return_20d",
-    "Mean_Absolute_Return_5d",
-]
-TARGET = "Target_Future_5d_Volatility"
-
-df = pd.read_csv(DATA_PATH, index_col=0, parse_dates=True).sort_index()
-
-X = df[FEATURES]
-y = df[TARGET]
-
-split_idx = int(len(df) * 0.8)
-
-train_end = split_idx - 5
-
-X_train, X_test = X.iloc[:train_end], X.iloc[split_idx:]
-y_train, y_test = y.iloc[:train_end], y.iloc[split_idx:]
-
-baseline = df.loc[X_test.index, "Baseline_Past_5d_RSS"]
-
-model = make_pipeline(
-    StandardScaler(),
-    Ridge(alpha=1.0),
+from project_paths import FEATURES_PATH, REPORTS_DIR
+from research_utils import (
+    BASELINE,
+    FEATURES,
+    TARGET,
+    chronological_split,
+    clip_nonnegative_predictions,
 )
-model.fit(X_train, y_train)
-predictions = model.predict(X_test)
 
-predictions = np.maximum(predictions, 0)
 
-baseline_mae = mean_absolute_error(y_test, baseline)
-ridge_mae = mean_absolute_error(y_test, predictions)
+def main():
+    df = pd.read_csv(
+        FEATURES_PATH,
+        index_col=0,
+        parse_dates=True,
+    ).sort_index()
+    train, test = chronological_split(df)
 
-print("--- EXPERIMENT SETUP ---")
-print(f"Total observations: {len(df)}")
-print(f"Training observations: {len(X_train)}")
-print(f"Test observations: {len(X_test)}")
-print(f"Training ends: {X_train.index.max().date()}")
-print(f"Test starts: {X_test.index.min().date()}")
+    X_train = train[FEATURES]
+    X_test = test[FEATURES]
+    y_train = train[TARGET]
+    y_test = test[TARGET]
+    baseline = test[BASELINE]
 
-print("\n--- TEST RESULTS ---")
-print(f"Baseline MAE: {baseline_mae:.6f}")
-print(f"Ridge MAE:    {ridge_mae:.6f}")
+    model = make_pipeline(
+        StandardScaler(),
+        Ridge(alpha=1.0),
+    )
+    model.fit(X_train, y_train)
+    predictions = clip_nonnegative_predictions(model.predict(X_test))
 
-improvement = (baseline_mae - ridge_mae) / baseline_mae * 100
-print(f"Ridge improvement vs baseline: {improvement:.2f}%")
+    baseline_mae = mean_absolute_error(y_test, baseline)
+    ridge_mae = mean_absolute_error(y_test, predictions)
 
-results = pd.DataFrame({
-    "Actual": y_test,
-    "Baseline": baseline,
-    "Ridge": predictions,
-})
-results.to_csv("reports/test_predictions.csv", index_label="Date")
-print("\nSaved predictions to reports/test_predictions.csv")
+    print("--- EXPERIMENT SETUP ---")
+    print(f"Total observations: {len(df)}")
+    print(f"Training observations: {len(X_train)}")
+    print(f"Test observations: {len(X_test)}")
+    print(f"Training ends: {X_train.index.max().date()}")
+    print(f"Test starts: {X_test.index.min().date()}")
+
+    print("\n--- TEST RESULTS ---")
+    print(f"Baseline MAE: {baseline_mae:.6f}")
+    print(f"Ridge MAE:    {ridge_mae:.6f}")
+
+    improvement = (baseline_mae - ridge_mae) / baseline_mae * 100
+    print(f"Ridge improvement vs baseline: {improvement:.2f}%")
+
+    results = pd.DataFrame({
+        "Actual": y_test,
+        "Baseline": baseline,
+        "Ridge": predictions,
+    })
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+    output_path = REPORTS_DIR / "test_predictions.csv"
+    results.to_csv(output_path, index_label="Date")
+    print(f"\nSaved predictions to {output_path}")
+
+
+if __name__ == "__main__":
+    main()

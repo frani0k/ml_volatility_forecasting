@@ -1,139 +1,77 @@
 ﻿# Prognozowanie zmienności SPY
 
-Projekt badawczy sprawdzający, czy proste modele regresyjne potrafią prognozować krótkoterminową zmienność ETF-u SPY oraz które decyzje dotyczące konstrukcji modelu mają znaczenie dla wyników.
+**Pytanie badawcze:** Czy uczenie maszynowe rzeczywiście poprawia prognozowanie zmienności?
 
-Zamiast przewidywać kierunek ceny, model szacuje wielkość ruchów cen w kolejnych pięciu sesjach giełdowych. Najważniejszym elementem projektu jest testowanie hipotez i kontrola metodologii, a nie samo uzyskanie jak najniższego błędu.
+Projekt porównuje prostą metodę historycznej zmienności z regresją Ridge na dziennych danych ETF-u SPY. To eksperyment badawczy, nie porada inwestycyjna ani test strategii.
 
-## Pytania badawcze
+## Wyniki
 
-1. Czy Ridge poprawia prognozę względem prostej metody bazowej?
-2. Czy cecha `Volatility_20d` wnosi użyteczną informację ponad pozostałe cechy?
-3. Czy Ridge ma praktyczną przewagę nad zwykłą regresją liniową przy tym samym zestawie cech?
+Na głównym, chronologicznym zbiorze testowym Ridge osiągnął MAE **0,006306**, a baseline **0,008005** — różnica wyniosła **21,22%** na korzyść Ridge. Usunięcie cechy `Volatility_20d` zwiększyło MAE o **4,28%**; wzrost wystąpił też we wszystkich czterech dodatkowych oknach.
 
-## Najważniejsze wyniki
-
-### Ridge a metoda bazowa
-
-| Metoda         |      MAE |
-| -------------- | -------: |
-| Metoda bazowa  | 0.008005 |
-| Ridge — 5 cech | 0.006306 |
-
-Na głównym zbiorze testowym Ridge uzyskał MAE niższy o **21,22%** względem metody bazowej.
-
-W czterech chronologicznych oknach testowych Ridge również uzyskał niższy MAE. Średnia poprawa wyniosła **20,65%**. Okna pochodzą jednak z tej samej historycznej serii i częściowo pokrywają się z głównym okresem testowym, więc nie są niezależnymi eksperymentami.
-
-### Ablacja cechy `Volatility_20d`
-
-| Wariant                    |      MAE |
-| -------------------------- | -------: |
-| Ridge — wszystkie cechy    | 0.006306 |
-| Ridge bez `Volatility_20d` | 0.006576 |
-
-Po usunięciu `Volatility_20d` MAE wzrósł o **4,28%** na głównym teście. Błąd wzrósł również we wszystkich czterech dodatkowych oknach chronologicznych. Wyniki wspierają hipotezę, że ta cecha jest przydatna w tym modelu i na tym zbiorze danych; nie dowodzą związku przyczynowego ani uniwersalnej użyteczności tej cechy.
-
-### Ridge a zwykła regresja liniowa
-
-| Model               |         MAE |
-| ------------------- | ----------: |
-| Regresja liniowa    | 0.006306482 |
-| Ridge (`alpha=1.0`) | 0.006306344 |
-
-Różnica na głównym teście jest bardzo mała — przewaga Ridge wynosi około **0,00218%**. Ridge wygrywa w trzech z czterech dodatkowych okien, ale różnice również są minimalne.
-
-Bootstrap blokowy dla różnicy MAE (regresja liniowa minus Ridge) dał 95-procentowe przedziały dla względnej poprawy obejmujące zero przy długościach bloku 5, 10 i 20. Nie ma więc przekonujących dowodów na praktyczną przewagę Ridge w tym porównaniu. Nie jest to jednak formalny dowód równoważności modeli.
+Porównanie Ridge ze zwykłą regresją liniową dało niemal identyczny wynik: MAE wyniosły odpowiednio **0,006306344** i **0,006306482**. Blokowy bootstrap (5000 replikacji, bloki długości 5, 10 i 20) dał przedziały obejmujące zero. Wyniki nie stanowią przekonującego dowodu na praktyczną przewagę Ridge nad regresją liniową ani na równoważność tych modeli.
 
 ## Dane i definicja celu
 
-- Instrument: SPY.
-- Źródło: Yahoo Finance (`yfinance`).
-- Zakres: 2015–2025.
-- Początkowo: 2766 obserwacji.
-- Po przygotowaniu cech: 2741 obserwacji.
+Skrypt pobiera dzienne ceny SPY z Yahoo Finance (`yfinance`) dla okresu 2015-01-01–2025-12-31 z `auto_adjust=True`. Parametr `end` w yfinance jest wyłączny, dlatego skrypt przekazuje `2026-01-01`. Surowe dane zapisuje lokalnie w `data/raw/spy_prices.csv`; pliki danych nie są śledzone przez Git. Yahoo Finance może później korygować historię, więc ponowne pobranie nie musi odtworzyć identycznego pliku.
 
-Cel prognozy to pierwiastek z sumy kwadratów dziennych stóp zwrotu z kolejnych pięciu sesji:
+Dzienna prosta stopa zwrotu:
 
 \[
-Y*t = \sqrt{\sum*{i=1}^{5} r\_{t+i}^{2}}
+r_t = \frac{P_t}{P_{t-1}} - 1
 \]
 
-Jest to miara łącznej wielkości ruchów cen w przyszłym pięciosesyjnym okresie — nie prognoza kierunku ceny ani klasyczne odchylenie standardowe.
+Prognozowany cel to pierwiastek z sumy kwadratów zwrotów z kolejnych pięciu sesji:
 
-Cechy wejściowe:
+\[
+Y_t = \sqrt{\sum_{i=1}^{5} r_{t+i}^{2}}
+\]
 
-- `Volatility_5d`
-- `Volatility_20d`
-- `Mean_Return_5d`
-- `Mean_Return_20d`
-- `Mean_Absolute_Return_5d`
+To pięciosesyjna miara RSS, a nie klasyczne odchylenie standardowe. Model wykorzystuje pięć cech obliczanych z danych dostępnych do końca dnia `t`: `Volatility_5d`, `Volatility_20d`, `Mean_Return_5d`, `Mean_Return_20d` i `Mean_Absolute_Return_5d`. Baseline to RSS z poprzednich pięciu zwrotów.
 
-Dane dzielone są chronologicznie. Skalowanie dopasowywane jest tylko na danych treningowych, a pomiędzy treningiem i testem pozostawiono pięć obserwacji odstępu ze względu na nakładanie się horyzontów celu.
+## Protokół
 
-## Struktura projektu
+Dane nie są losowo mieszane. Główny podział obejmuje 2187 obserwacji treningowych, pięć pominiętych wierszy odstępu i 549 testowych. Pięciowierszowa przerwa zapobiega nakładaniu się pięciodniowych celów treningowych i zwrotów testowych. `StandardScaler` jest dopasowywany wewnątrz pipeline’u wyłącznie na treningu; Ridge używa `alpha=1.0`. Ujemne prognozy są obcinane do zera. Główną metryką jest MAE.
 
-```text
-ml_volatility_forecasting/
-├── reports/
-│   ├── figures/
-│   ├── research_report.md
-│   ├── rolling_evaluation.csv
-│   ├── test_predictions.csv
-│   ├── feature_ablation_main.csv
-│   ├── feature_ablation_rolling.csv
-│   ├── model_comparison_main.csv
-│   ├── model_comparison_rolling.csv
-│   └── bootstrap_uncertainty.csv
-├── src/
-│   ├── download_data.py
-│   ├── explore_data.py
-│   ├── analyze_returns.py
-│   ├── prepare_features.py
-│   ├── train_model.py
-│   ├── evaluate_results.py
-│   ├── rolling_evaluation.py
-│   ├── audit_experiment.py
-│   ├── feature_ablation.py
-│   ├── model_comparison.py
-│   └── bootstrap_uncertainty.py
-├── .gitignore
-├── README.md
-└── requirements.txt
+Dodatkowo projekt wykonuje cztery rozszerzane ewaluacje chronologiczne, ablację `Volatility_20d`, porównanie regresji liniowej z Ridge oraz sparowany blokowy bootstrap błędów. Okna i sąsiednie cele pochodzą z tej samej serii i nie są niezależnymi próbami. Hipotezy są eksploracyjne; nie wykonano backtestu strategii.
+
+## Środowisko i uruchomienie w Windows PowerShell
+
+Projekt sprawdzono na **CPython 3.14.0**. Bezpośrednie zależności są przypięte w `requirements.txt`.
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe src\download_data.py
+.\.venv\Scripts\python.exe src\explore_data.py
+.\.venv\Scripts\python.exe src\analyze_returns.py
+.\.venv\Scripts\python.exe src\prepare_features.py
+.\.venv\Scripts\python.exe src\train_model.py
+.\.venv\Scripts\python.exe src\evaluate_results.py
+.\.venv\Scripts\python.exe src\rolling_evaluation.py
+.\.venv\Scripts\python.exe src\feature_ablation.py
+.\.venv\Scripts\python.exe src\model_comparison.py
+.\.venv\Scripts\python.exe src\bootstrap_uncertainty.py
+.\.venv\Scripts\python.exe src\audit_experiment.py
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+.\.venv\Scripts\python.exe -m compileall -q src tests
 ```
 
-Katalogi `data/raw/` i `data/processed/` są lokalnymi artefaktami i są ignorowane przez Git. Dane można odtworzyć skryptem pobierającym.
+Pobieranie danych wymaga połączenia z internetem. Testy, audyt, przygotowanie cech i modele korzystają z lokalnych plików; nie pobierają danych samodzielnie.
 
-## Uruchomienie
+## Skrypty i artefakty
 
-Wymagany Python z bibliotekami wymienionymi w `requirements.txt`.
+- `download_data.py` zapisuje surowe ceny; `prepare_features.py` tworzy `data/processed/volatility_features.csv`.
+- `train_model.py` zapisuje `reports/test_predictions.csv`; `evaluate_results.py` tworzy wykres testu.
+- `rolling_evaluation.py` zapisuje `reports/rolling_evaluation.csv`.
+- `feature_ablation.py` zapisuje `reports/feature_ablation_main.csv` i `reports/feature_ablation_rolling.csv`.
+- `model_comparison.py` zapisuje `reports/model_comparison_main.csv` i `reports/model_comparison_rolling.csv`.
+- `bootstrap_uncertainty.py` zapisuje `reports/model_comparison_test_predictions.csv` i `reports/bootstrap_uncertainty.csv`.
+- `analyze_returns.py` tworzy `reports/figures/price_and_volatility.png`; `evaluate_results.py` tworzy `reports/figures/test_predictions.png`.
+- `audit_experiment.py` niezależnie sprawdza cechy, cel i baseline.
+- Testy niezmienników znajdują się w `tests/test_research_utils.py`; wspólne ścieżki i obliczenia są w `src/project_paths.py` i `src/research_utils.py`.
 
-```bash
-pip install -r requirements.txt
-python src/download_data.py
-python src/prepare_features.py
-python src/train_model.py
-python src/evaluate_results.py
-python src/rolling_evaluation.py
-python src/audit_experiment.py
-python src/feature_ablation.py
-python src/model_comparison.py
-python src/bootstrap_uncertainty.py
-```
+## Ograniczenia
 
-Skrypty należy uruchamiać z głównego katalogu repozytorium. Eksperymenty zapisują wyniki do katalogu `reports/`.
+Badanie dotyczy jednego instrumentu i jednej historii z lat 2015–2025. Cele dla sąsiednich dat nakładają się, dodatkowe okna nie są niezależne, a hipotezy powstały w toku eksploracji. Bootstrap opisuje niepewność w jednym teście i zależy od długości bloków. Niższy błąd prognozy nie dowodzi, że strategia inwestycyjna byłaby zyskowna.
 
-## Audyt i ograniczenia
-
-`src/audit_experiment.py` niezależnie odtwarza obliczenia celu i metody bazowej. Audyt wykazał 2741 obserwacji, brak zduplikowanych dat, uporządkowane daty, brak brakujących wartości i zerowy błąd rekonstrukcji celu oraz baseline'u.
-
-Najważniejsze ograniczenia:
-
-- badany jest jeden instrument i jeden zakres historyczny;
-- pięciosesyjne horyzonty celu częściowo się pokrywają, co ma znaczenie przy ocenie niepewności;
-- dodatkowe okna nie stanowią niezależnych prób;
-- analiza grup o najwyższej przyszłej zmienności jest diagnostyką post hoc — przyszła zmienność nie jest znana w momencie prognozy;
-- nie przeprowadzono testu strategii inwestycyjnej; dokładniejsza prognoza zmienności sama w sobie nie oznacza zysków;
-- hipotezy mają charakter eksploracyjny, a wyniki nie powinny być interpretowane jako gwarancja skuteczności na przyszłych danych.
-
-## Raport badawczy
-
-Pełny opis hipotez, metodologii, wyników i ograniczeń znajduje się w [`reports/research_report.md`](reports/research_report.md).
+Szczegółowa metodologia, wyniki i interpretacja znajdują się w [`reports/research_report.md`](reports/research_report.md).
