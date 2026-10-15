@@ -1,0 +1,2 @@
+Period,Train_rows,Test_rows,Baseline_MAE,Ridge_all_features_MAE,Ridge_without_Volatility_20d_MAE,MAE_change_after_removal_pct
+Main test,2187,549,0.00800476243148611,0.006306344330990858,0.006576376878204683,4.281918858867587

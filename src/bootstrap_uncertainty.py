@@ -1,0 +1,203 @@
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.metrics import mean_absolute_error
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
+
+DATA_PATH = Path("data/processed/volatility_features.csv")
+REPORTS_DIR = Path("reports")
+
+FEATURES = [
+    "Volatility_5d",
+    "Volatility_20d",
+    "Mean_Return_5d",
+    "Mean_Return_20d",
+    "Mean_Absolute_Return_5d",
+]
+
+TARGET = "Target_Future_5d_Volatility"
+
+N_BOOTSTRAPS = 5000
+BLOCK_LENGTHS = [5, 10, 20]
+RANDOM_SEED = 42
+
+
+def bootstrap_block_ci(
+    linear_errors,
+    ridge_errors,
+    block_length,
+    n_bootstraps=N_BOOTSTRAPS,
+    random_seed=RANDOM_SEED,
+):
+    """Estimate uncertainty in paired MAE differences using block bootstrap."""
+    n = len(linear_errors)
+    n_blocks = int(np.ceil(n / block_length))
+    rng = np.random.default_rng(random_seed)
+
+    # Sample contiguous blocks of test observations.
+    max_start = n - block_length
+    starts = rng.integers(
+        0,
+        max_start + 1,
+        size=(n_bootstraps, n_blocks),
+    )
+    offsets = np.arange(block_length)
+
+    indices = (starts[:, :, None] + offsets).reshape(
+        n_bootstraps, -1
+    )[:, :n]
+
+    sampled_linear = linear_errors[indices].mean(axis=1)
+    sampled_ridge = ridge_errors[indices].mean(axis=1)
+
+    # Positive differences mean Ridge has lower MAE.
+    differences = sampled_linear - sampled_ridge
+    improvements_pct = (
+        differences / sampled_linear * 100
+    )
+
+    return {
+        "Block_length": block_length,
+        "Bootstrap_samples": n_bootstraps,
+        "MAE_difference_linear_minus_ridge": (
+            linear_errors.mean() - ridge_errors.mean()
+        ),
+        "MAE_difference_CI_lower": np.quantile(
+            differences, 0.025
+        ),
+        "MAE_difference_CI_upper": np.quantile(
+            differences, 0.975
+        ),
+        "Ridge_improvement_pct": (
+            (linear_errors.mean() - ridge_errors.mean())
+            / linear_errors.mean()
+            * 100
+        ),
+        "Improvement_pct_CI_lower": np.quantile(
+            improvements_pct, 0.025
+        ),
+        "Improvement_pct_CI_upper": np.quantile(
+            improvements_pct, 0.975
+        ),
+    }
+
+
+def main():
+    REPORTS_DIR.mkdir(parents=True, exist_ok=True)
+
+    df = pd.read_csv(
+        DATA_PATH,
+        index_col=0,
+        parse_dates=True,
+    ).sort_index()
+
+    # Match the existing main chronological split.
+    split_idx = int(len(df) * 0.8)
+    train_end = split_idx - 5
+
+    train = df.iloc[:train_end]
+    test = df.iloc[split_idx:]
+
+    X_train = train[FEATURES]
+    y_train = train[TARGET]
+    X_test = test[FEATURES]
+    y_test = test[TARGET]
+
+    linear_model = make_pipeline(
+        StandardScaler(),
+        LinearRegression(),
+    )
+    ridge_model = make_pipeline(
+        StandardScaler(),
+        Ridge(alpha=1.0),
+    )
+
+    linear_model.fit(X_train, y_train)
+    ridge_model.fit(X_train, y_train)
+
+    linear_predictions = np.maximum(
+        linear_model.predict(X_test), 0
+    )
+    ridge_predictions = np.maximum(
+        ridge_model.predict(X_test), 0
+    )
+
+    # Save paired predictions so results can be inspected later.
+    predictions = pd.DataFrame(
+        {
+            "Actual": y_test,
+            "LinearRegression": linear_predictions,
+            "Ridge": ridge_predictions,
+            "AbsError_Linear": np.abs(
+                y_test.to_numpy() - linear_predictions
+            ),
+            "AbsError_Ridge": np.abs(
+                y_test.to_numpy() - ridge_predictions
+            ),
+        },
+        index=y_test.index,
+    )
+    predictions.index.name = "Date"
+    predictions.to_csv(
+        REPORTS_DIR / "model_comparison_test_predictions.csv"
+    )
+
+    linear_errors = predictions[
+        "AbsError_Linear"
+    ].to_numpy()
+    ridge_errors = predictions[
+        "AbsError_Ridge"
+    ].to_numpy()
+
+    print("--- MODEL COMPARISON ---")
+    print(f"Training observations: {len(train)}")
+    print(f"Test observations: {len(test)}")
+    print(
+        "Linear Regression MAE: "
+        f"{mean_absolute_error(y_test, linear_predictions):.9f}"
+    )
+    print(
+        "Ridge MAE:             "
+        f"{mean_absolute_error(y_test, ridge_predictions):.9f}"
+    )
+    print(
+        "MAE difference (Linear - Ridge): "
+        f"{linear_errors.mean() - ridge_errors.mean():.10f}"
+    )
+
+    results = [
+        bootstrap_block_ci(
+            linear_errors,
+            ridge_errors,
+            block_length,
+        )
+        for block_length in BLOCK_LENGTHS
+    ]
+
+    results_df = pd.DataFrame(results)
+    results_path = REPORTS_DIR / "bootstrap_uncertainty.csv"
+    results_df.to_csv(results_path, index=False)
+
+    print("\n--- BLOCK BOOTSTRAP (95% INTERVALS) ---")
+    for result in results:
+        print(
+            f"Block length {result['Block_length']:>2}: "
+            f"MAE difference CI = "
+            f"[{result['MAE_difference_CI_lower']:.8f}, "
+            f"{result['MAE_difference_CI_upper']:.8f}], "
+            f"improvement CI = "
+            f"[{result['Improvement_pct_CI_lower']:.3f}%, "
+            f"{result['Improvement_pct_CI_upper']:.3f}%]"
+        )
+
+    print(f"\nSaved predictions: "
+          f"{REPORTS_DIR / 'model_comparison_test_predictions.csv'}")
+    print(f"Saved intervals: {results_path}")
+
+
+if __name__ == "__main__":
+    main()

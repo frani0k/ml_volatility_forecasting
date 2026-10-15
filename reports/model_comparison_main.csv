@@ -1,0 +1,2 @@
+Period,Train_rows,Test_rows,Baseline_MAE,LinearRegression_MAE,Ridge_MAE,Ridge_improvement_vs_linear_pct
+Main test,2187,549,0.00800476243148611,0.006306481767810734,0.006306344330990858,0.00217929465169719

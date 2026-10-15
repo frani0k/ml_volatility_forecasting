@@ -1,141 +1,254 @@
-# Prognozowanie zmienności SPY z wykorzystaniem uczenia maszynowego
+# Czy dłuższa historia zmienności pomaga w prognozowaniu SPY?
 
-## 1. Cel projektu
+## Streszczenie
 
-W tym projekcie chciałem sprawdzić, czy prosty model uczenia maszynowego może lepiej przewidywać krótkoterminową zmienność rynku niż metoda oparta na ostatnich zmianach cen.
+W tym projekcie sprawdzam, czy model uczenia maszynowego może prognozować krótkoterminową zmienność ETF-u SPY dokładniej niż prosta metoda bazowa. Następnie badam, czy zmienność z ostatnich 20 sesji wnosi użyteczną informację oraz czy regresja Ridge daje praktyczną przewagę nad zwykłą regresją liniową.
 
-Do eksperymentu wykorzystałem dane ETF-u SPY, który odwzorowuje zachowanie indeksu S&P 500. Zamiast próbować przewidzieć, czy cena wzrośnie, czy spadnie, skupiłem się na oszacowaniu wielkości ruchów cen w ciągu kolejnych pięciu sesji giełdowych.
+Na głównym zbiorze testowym Ridge osiągnął MAE równy **0,006306**, wobec **0,008005** dla metody bazowej — błąd był niższy o **21,22%**. Usunięcie cechy `Volatility_20d` zwiększyło MAE o **4,28%**, a pogorszenie wystąpiło również we wszystkich czterech dodatkowych oknach chronologicznych. Jednocześnie Ridge i zwykła regresja liniowa osiągnęły niemal identyczne wyniki. Przedziały ufności z blokowego bootstrapu dla różnicy ich błędów obejmowały zero, więc wyniki nie dają przekonujących dowodów na praktyczną przewagę Ridge.
 
-Do porównania wybrałem regresję Ridge oraz prostą metodę bazową wykorzystującą dane z poprzednich sesji.
+To eksperyment prognostyczny na historycznych danych SPY, a nie strategia inwestycyjna ani dowód, że uzyskane wyniki będą powtarzać się na innych aktywach.
 
-## 2. Dane
+## 1. Pytanie badawcze
 
-Dane pobrałem z Yahoo Finance przy użyciu biblioteki `yfinance`. Obejmują okres od stycznia 2015 do grudnia 2025 roku.
+Czy informacje o niedawnej zmienności rynku pozwalają dokładniej prognozować wielkość ruchów cen SPY w kolejnych pięciu sesjach giełdowych?
 
-Początkowy zbiór zawierał 2766 obserwacji. Po przygotowaniu cech i usunięciu wierszy, dla których nie można było obliczyć wszystkich wymaganych wartości, pozostało 2741 obserwacji.
+Nie próbuję przewidywać, czy cena wzrośnie, czy spadnie. Celem jest oszacowanie skali przyszłych ruchów. Po porównaniu modelu z prostą metodą bazową sprawdzam też dwie bardziej szczegółowe kwestie:
 
-Sprawdziłem również jakość danych. Daty były uporządkowane, nie występowały duplikaty dat ani brakujące wartości w przygotowanym zbiorze.
+1. Czy cecha `Volatility_20d` wnosi użyteczną informację ponad pozostałe cechy?
+2. Czy regularyzacja Ridge poprawia prognozy względem zwykłej regresji liniowej?
 
-## 3. Co model ma przewidywać?
+Hipotezy i dodatkowe testy powstały w toku eksploracyjnego projektu, po wstępnym porównaniu modelu z baseline'em. Nie należy więc traktować ich jako hipotez zarejestrowanych przed obejrzeniem wyników.
 
-Celem modelu jest oszacowanie zmienności z kolejnych pięciu sesji giełdowych. W tym celu wykorzystałem sumę kwadratów dziennych stóp zwrotu, a następnie obliczyłem z niej pierwiastek.
+## 2. Hipotezy
 
-Zastosowana definicja celu ma postać:
+### H1 — znaczenie zmienności z 20 sesji
+
+**Usunięcie `Volatility_20d` z modelu Ridge pogorszy jakość prognoz mierzoną przez MAE.**
+
+Porównuję pełny model z modelem, w którym usuwam wyłącznie tę cechę. Pozostałe cechy, parametr `alpha`, skalowanie i podział danych pozostają bez zmian. Hipotezę wspiera wzrost błędu na głównym teście oraz powtarzalność tego wyniku w kolejnych oknach chronologicznych.
+
+### H2 — przewaga regularyzacji Ridge
+
+**Regresja Ridge osiągnie niższy MAE niż zwykła regresja liniowa, gdy oba modele używają tych samych cech i tych samych podziałów danych.**
+
+Porównuję oba modele na głównym teście i w czterech oknach chronologicznych. Ponieważ oczekiwana różnica jest niewielka, dodatkowo szacuję niepewność różnicy błędów metodą blokowego bootstrapu.
+
+## 3. Dane
+
+Dane historyczne ETF-u SPY pobrałem z Yahoo Finance za pomocą biblioteki `yfinance`. Zakres obejmuje lata 2015–2025.
+
+- Liczba obserwacji w surowym zbiorze: **2766**.
+- Liczba obserwacji po przygotowaniu cech i celu: **2741**.
+- Daty w przygotowanym zbiorze są uporządkowane.
+- Nie znaleziono zduplikowanych dat ani brakujących wartości w przygotowanym zbiorze.
+
+Wyniki dotyczą jednego instrumentu i jednego zakresu historycznego. Nie zakładam, że będą automatycznie uogólniać się na inne ETF-y, akcje lub okresy rynkowe.
+
+## 4. Definicja celu
+
+Na podstawie cen obliczam dzienne stopy zwrotu:
+
+\[
+r*t = \frac{P_t}{P*{t-1}} - 1
+\]
+
+Celem prognozy jest pierwiastek z sumy kwadratów stóp zwrotu z kolejnych pięciu sesji:
 
 \[
 Y*t = \sqrt{\sum*{i=1}^{5} r\_{t+i}^{2}}
 \]
 
-gdzie \(r\) oznacza dzienną stopę zwrotu.
+Miara ta opisuje łączną wielkość ruchów cen w przyszłym pięciosesyjnym okresie. Jest to **pięciosesyjna miara RSS**, a nie klasyczne odchylenie standardowe ani prognoza kierunku ceny.
 
-W praktyce oznacza to, że większe zmiany cen mają większy wpływ na wynik. Model nie przewiduje kierunku przyszłej zmiany ceny, tylko wielkość ruchów w nadchodzącym okresie.
+Cechy wejściowe korzystają z danych dostępnych najpóźniej w dniu prognozy. Cel wykorzystuje stopy zwrotu z kolejnych pięciu sesji. W głównym podziale pozostawiam pięć obserwacji odstępu między końcem treningu a początkiem testu, aby ograniczyć nakładanie się okresów celu po obu stronach podziału.
 
-## 4. Przygotowanie cech
+## 5. Cechy i modele
 
-Do modelu wykorzystałem pięć cech obliczonych na podstawie historycznych stóp zwrotu:
+Pełny model wykorzystuje pięć cech:
 
-- zmienność z ostatnich 5 sesji,
-- zmienność z ostatnich 20 sesji,
-- średnią stopę zwrotu z ostatnich 5 sesji,
-- średnią stopę zwrotu z ostatnich 20 sesji,
-- średnią wartość bezwzględnej stopy zwrotu z ostatnich 5 sesji.
+- `Volatility_5d` — zmienność stóp zwrotu z ostatnich 5 sesji,
+- `Volatility_20d` — zmienność stóp zwrotu z ostatnich 20 sesji,
+- `Mean_Return_5d` — średnia stopa zwrotu z ostatnich 5 sesji,
+- `Mean_Return_20d` — średnia stopa zwrotu z ostatnich 20 sesji,
+- `Mean_Absolute_Return_5d` — średnia wartość bezwzględnej stopy zwrotu z ostatnich 5 sesji.
 
-Wszystkie cechy wykorzystują dane dostępne najpóźniej w dniu tworzenia prognozy. Cel odnosi się natomiast do kolejnych pięciu sesji.
+Model Ridge korzysta z `alpha = 1.0` i `StandardScaler`. Skalowanie jest dopasowywane wyłącznie na danych treningowych. Ujemne prognozy są ograniczane do zera, ponieważ cel nie może być ujemny.
 
-Dzięki temu model nie powinien korzystać z przyszłych stóp zwrotu jako danych wejściowych.
+Jako metodę bazową wykorzystuję pierwiastek z sumy kwadratów stóp zwrotu z poprzednich pięciu sesji. Baseline pozwala ocenić, czy model wnosi coś ponad prostą prognozę opartą na niedawnej historii.
 
-## 5. Porównywane metody
+## 6. Protokół ewaluacji
 
-### Metoda bazowa
+Dane dzielę chronologicznie, bez losowego mieszania obserwacji. Główny eksperyment wykorzystuje:
 
-Jako punkt odniesienia wykorzystałem pierwiastek z sumy kwadratów stóp zwrotu z poprzednich pięciu sesji. Jest to prosta metoda, która zakłada, że ostatnia aktywność rynku może pomóc w oszacowaniu najbliższej przyszłej zmienności.
+- **2187** obserwacji treningowych,
+- **549** obserwacji testowych,
+- pięć obserwacji odstępu między treningiem a testem.
 
-### Regresja Ridge
+Trening kończy się 2023-10-09, a główny test rozpoczyna się 2023-10-17. Metryką główną jest **MAE (Mean Absolute Error)** — średnia wartość bezwzględnego błędu prognozy. Niższy MAE oznacza dokładniejsze prognozy w tej skali celu.
 
-Drugą metodą jest regresja Ridge, czyli model regresyjny z regularyzacją L2. Przed treningiem zastosowałem `StandardScaler`, aby ujednolicić skalę cech. Skalowanie było dopasowywane wyłącznie na danych treningowych.
+Dodatkowo przeprowadzam ewaluację w czterech kolejnych oknach chronologicznych, z rozszerzanym zbiorem treningowym. Każde okno testowe zawiera 274 obserwacje. Te okna nie są niezależnymi próbami: pochodzą z tej samej serii czasowej, a cele dla sąsiednich dat częściowo się pokrywają. Nie traktuję ich jako czterech niezależnych potwierdzeń statystycznych.
 
-W modelu ustawiłem parametr `alpha = 1.0`. Przewidywane wartości ograniczyłem od dołu do zera, ponieważ zmienność nie powinna być ujemna.
+## 7. Wynik główny: Ridge kontra metoda bazowa
 
-## 6. Podział danych i ocena wyników
+| Metoda            |      MAE |
+| ----------------- | -------: |
+| Metoda bazowa     | 0,008005 |
+| Ridge — pięć cech | 0,006306 |
 
-Dane podzieliłem chronologicznie, a nie losowo. Model uczył się na wcześniejszych obserwacjach, a jego wyniki sprawdzałem na późniejszych danych.
+Ridge uzyskał na głównym teście MAE niższy o **21,22%** względem baseline'u. To zachęcający wynik, ale sam w sobie nie wyjaśnia, które cechy są przydatne ani czy różnica będzie utrzymywać się w przyszłości.
 
-Do treningu wykorzystałem 2187 obserwacji, a do testu 549 obserwacji. Pomiędzy tymi zbiorami zostawiłem pięć obserwacji odstępu, ponieważ cel obejmuje przyszłe pięć sesji.
+## 8. Eksperyment H1: usunięcie `Volatility_20d`
 
-Jako główną miarę jakości wykorzystałem MAE, czyli średni błąd bezwzględny. Im niższa jego wartość, tym mniejsza jest przeciętna różnica między prognozą a wartością rzeczywistą.
+Porównałem pełny model Ridge z wariantem pozbawionym wyłącznie cechy `Volatility_20d`.
 
-## 7. Główne wyniki
+### Główny test
 
-Na głównym zbiorze testowym otrzymałem następujące rezultaty:
+| Wariant                    |      MAE |
+| -------------------------- | -------: |
+| Ridge — wszystkie cechy    | 0,006306 |
+| Ridge bez `Volatility_20d` | 0,006576 |
 
-| Metoda         |      MAE |
-| -------------- | -------: |
-| Metoda bazowa  | 0,008005 |
-| Regresja Ridge | 0,006306 |
+Po usunięciu cechy MAE wzrósł o **4,28%** względem pełnego modelu.
 
-Regresja Ridge osiągnęła o **21,22% niższy MAE** niż metoda bazowa.
+### Kolejne okna chronologiczne
 
-Oznacza to, że w tym eksperymencie model lepiej szacował przyszłą zmienność niż prosta metoda wykorzystująca ostatnie sesje. Jest to jednak wynik dla konkretnego instrumentu i okresu historycznego, a nie gwarancja podobnej skuteczności w przyszłości.
+| Okres testowy | MAE pełnego Ridge | MAE bez `Volatility_20d` | Zmiana MAE po usunięciu |
+| ------------- | ----------------: | -----------------------: | ----------------------: |
+| 2021–2022     |          0,007718 |                 0,008008 |                  +3,75% |
+| 2022–2023     |          0,005534 |                 0,006091 |                 +10,07% |
+| 2023–2024     |          0,004781 |                 0,005009 |                  +4,77% |
+| 2024–2025     |          0,007833 |                 0,008108 |                  +3,52% |
 
-## 8. Sprawdzenie modelu na kolejnych okresach
+We wszystkich czterech oknach usunięcie cechy pogorszyło wynik. Średni wzrost MAE w tych oknach wyniósł **5,53%**.
 
-Żeby sprawdzić, czy wynik nie zależy wyłącznie od jednego podziału danych, przeprowadziłem dodatkową ewaluację na czterech kolejnych okresach. W każdym przypadku model był trenowany na wcześniejszych danych, a następnie oceniany na następnym okresie.
+### Wniosek H1
 
-| Okres testowy | MAE metody bazowej | MAE Ridge | Poprawa |
-| ------------- | -----------------: | --------: | ------: |
-| 2021–2022     |           0,008768 |  0,007718 |  11,97% |
-| 2022–2023     |           0,007640 |  0,005534 |  27,57% |
-| 2023–2024     |           0,006215 |  0,004781 |  23,06% |
-| 2024–2025     |           0,009792 |  0,007833 |  20,00% |
+Wyniki **wspierają hipotezę**, że `Volatility_20d` wnosi użyteczną informację dla tego modelu, zestawu pozostałych cech i badanego okresu. Nie dowodzą jednak związku przyczynowego ani statystycznej istotności. Cechy opisujące zmienność mogą być ze sobą skorelowane, a wyniki pochodzą z jednej serii SPY.
 
-Model Ridge osiągnął niższy błąd we wszystkich czterech oknach. Średnia poprawa wyniosła 20,65%, a mediana 21,53%.
+## 9. Dodatkowa ewaluacja Ridge w czasie
 
-Uważam to za istotny element eksperymentu, ponieważ przewaga modelu utrzymała się w kilku różnych okresach. Trzeba jednak pamiętać, że wszystkie okna pochodzą z tej samej serii danych i nie są od siebie całkowicie niezależne.
+| Okres testowy | MAE baseline'u | MAE Ridge | Poprawa względem baseline'u |
+| ------------- | -------------: | --------: | --------------------------: |
+| 2021–2022     |       0,008768 |  0,007718 |                      11,97% |
+| 2022–2023     |       0,007640 |  0,005534 |                      27,57% |
+| 2023–2024     |       0,006215 |  0,004781 |                      23,06% |
+| 2024–2025     |       0,009792 |  0,007833 |                      20,00% |
 
-## 9. Wyniki przy różnym poziomie zmienności
+Ridge uzyskał niższy MAE niż baseline we wszystkich czterech oknach. Średnia poprawa wyniosła **20,65%**, a mediana **21,53%**. To dodatkowy argument, że model jest wart dalszego badania, ale nie jest to niezależne potwierdzenie H1 — okna pochodzą z tej samej serii i częściowo pokrywają się z głównym okresem testowym.
 
-Dodatkowo sprawdziłem, jak obie metody radzą sobie w okresach o różnej przyszłej zmienności.
+## 10. Dodatkowa analiza poziomu przyszłej zmienności
 
-Podzieliłem obserwacje testowe na dwie grupy: 20% przypadków o najwyższej zrealizowanej przyszłej zmienności oraz pozostałe 80%. Jest to analiza przeprowadzona po uzyskaniu wyników — w momencie tworzenia prognozy przyszła zmienność nie jest jeszcze znana.
+Podzieliłem obserwacje głównego testu na 20% przypadków o najwyższej zrealizowanej przyszłej zmienności oraz pozostałe 80%.
 
-| Grupa                    | Liczba obserwacji | MAE metody bazowej | MAE Ridge |
-| ------------------------ | ----------------: | -----------------: | --------: |
-| Najwyższe 20% zmienności |               110 |           0,017564 |  0,013916 |
-| Pozostałe obserwacje     |               439 |           0,005610 |  0,004400 |
+| Grupa                    | Liczba obserwacji | MAE baseline'u | MAE Ridge |
+| ------------------------ | ----------------: | -------------: | --------: |
+| Najwyższe 20% zmienności |               110 |       0,017564 |  0,013916 |
+| Pozostałe obserwacje     |               439 |       0,005610 |  0,004400 |
 
-W obu grupach Ridge uzyskał niższy błąd. Jednocześnie błędy były znacznie większe w przypadkach o najwyższej zmienności, co pokazuje, że gwałtowne ruchy rynku pozostają trudniejsze do oszacowania.
+Ridge miał niższy błąd w obu grupach, ale błędy były znacznie większe w okresach o najwyższej przyszłej zmienności. Jest to analiza diagnostyczna po fakcie: grupy definiuje rzeczywisty przyszły cel, którego nie znamy w momencie tworzenia prognozy. Nie jest to więc reguła możliwa do bezpośredniego zastosowania w czasie rzeczywistym.
 
-## 10. Ograniczenia
+## 11. Eksperyment H2: Ridge kontra zwykła regresja liniowa
 
-Projekt ma kilka ograniczeń, które trzeba uwzględnić przy interpretacji wyników.
+Aby sprawdzić, czy regularyzacja ma znaczenie, porównałem Ridge i zwykłą regresję liniową na tych samych pięciu cechach, z identycznym podziałem danych, skalowaniem i metryką.
 
-Po pierwsze, wykorzystałem tylko jeden instrument finansowy — SPY — oraz jeden zakres danych historycznych. Nie sprawdzałem, czy podobne wyniki można uzyskać dla innych aktywów.
+### Główny test
 
-Po drugie, cele obejmują kolejne pięć sesji, więc okresy prognoz częściowo się pokrywają. Zastosowałem odstęp między treningiem a testem, aby ograniczyć nakładanie się okresów, ale kolejne okna testowe nadal pochodzą z tej samej serii czasowej.
+| Model            |         MAE |
+| ---------------- | ----------: |
+| Regresja liniowa | 0,006306482 |
+| Ridge            | 0,006306344 |
 
-Po trzecie, testowałem jedną konfigurację regresji Ridge. Nie przeprowadzałem szerokiego przeszukiwania parametrów ani testów istotności statystycznej. Nie mogę więc stwierdzić, że uzyskana poprawa jest statystycznie istotna.
+Poprawa Ridge wyniosła około **0,00218%** — w praktyce wyniki były niemal identyczne.
 
-Nie testowałem również strategii inwestycyjnej, kosztów transakcyjnych ani wpływu prognoz na rzeczywiste wyniki finansowe. Niższy błąd przewidywania zmienności nie oznacza automatycznie, że na podstawie modelu można osiągać zyski.
+### Kolejne okna chronologiczne
 
-## 11. Podsumowanie
+| Okres testowy | MAE regresji liniowej | MAE Ridge | Poprawa Ridge |
+| ------------- | --------------------: | --------: | ------------: |
+| 2021–2022     |              0,007730 |  0,007718 |       +0,149% |
+| 2022–2023     |              0,005536 |  0,005534 |       +0,040% |
+| 2023–2024     |              0,004783 |  0,004781 |       +0,042% |
+| 2024–2025     |              0,007832 |  0,007833 |       −0,019% |
 
-W projekcie przygotowałem dane historyczne SPY, obliczyłem cechy na podstawie wcześniejszych stóp zwrotu i porównałem regresję Ridge z prostą metodą bazową.
+Ridge miał niższy MAE w trzech z czterech okien, ale różnice były bardzo małe. W ostatnim oknie minimalnie lepsza była regresja liniowa. Same wyniki punktowe nie dają przekonujących dowodów na praktyczną przewagę Ridge.
 
-Na głównym zbiorze testowym Ridge obniżył MAE o 21,22%. W dodatkowej ewaluacji chronologicznej uzyskał niższy błąd we wszystkich czterech badanych okresach, a średnia poprawa wyniosła 20,65%.
+## 12. Niepewność różnicy między Ridge a regresją liniową
 
-Wyniki sugerują, że w tym eksperymencie regresja Ridge była skuteczniejsza od zastosowanej metody bazowej. Nie oznacza to jednak, że jest najlepszym możliwym modelem ani że jego prognozy można bezpośrednio wykorzystać do podejmowania decyzji inwestycyjnych.
+Ponieważ błędy dla kolejnych dni mogą być zależne, do oszacowania niepewności użyłem **blokowego bootstrapu** na głównym zbiorze testowym. Losowałem bloki kolejnych obserwacji z błędami obu modeli, zachowując parowanie błędów z tych samych dat. Wykonałem 5000 replikacji dla długości bloku 5, 10 i 20 obserwacji, z ustalonym ziarnem generatora `42`.
 
-Kolejnym krokiem mogłoby być porównanie innych modeli, wykorzystanie dodatkowych cech i sprawdzenie, czy podobne wyniki pojawiają się na innych instrumentach finansowych.
+Różnicę zdefiniowałem jako MAE regresji liniowej minus MAE Ridge. Wartość dodatnia oznacza przewagę Ridge.
 
-## 12. Skrypty projektu
+| Długość bloku | 95% przedział dla różnicy MAE | 95% przedział względnej poprawy Ridge |
+| ------------: | ----------------------------: | ------------------------------------: |
+|             5 |     [−0,00000321; 0,00000291] |                    [−0,052%; +0,047%] |
+|            10 |     [−0,00000342; 0,00000300] |                    [−0,052%; +0,050%] |
+|            20 |     [−0,00000339; 0,00000265] |                    [−0,047%; +0,047%] |
 
-Najważniejsze pliki wykorzystane w eksperymencie:
+Wszystkie przedziały obejmują zero. W tej analizie nie ma więc przekonujących dowodów, że Ridge przewyższa zwykłą regresję liniową. Nie jest to dowód, że modele są równoważne; oznacza jedynie, że obserwowana różnica jest bardzo mała względem niepewności oszacowanej tą metodą.
 
-- `src/download_data.py` — pobieranie danych,
-- `src/explore_data.py` — wstępna analiza zbioru,
-- `src/analyze_returns.py` — analiza stóp zwrotu,
-- `src/prepare_features.py` — przygotowanie cech i celu,
-- `src/train_model.py` — trening i główna ewaluacja,
-- `src/evaluate_results.py` — porównanie prognoz i wykres,
-- `src/rolling_evaluation.py` — ewaluacja na kolejnych okresach,
-- `src/audit_experiment.py` — niezależne sprawdzenie obliczeń celu i metody bazowej.
+Wynik zależy od przyjętej metody bootstrapu i długości bloków. Analiza dotyczy jednego historycznego zbioru testowego i nie gwarantuje zachowania podobnych różnic w przyszłości.
+
+## 13. Audyt obliczeń
+
+Skrypt `src/audit_experiment.py` niezależnie odtwarza obliczenia celu oraz metody bazowej. Audyt wykazał:
+
+- 2741 obserwacji w przygotowanym zbiorze,
+- brak zduplikowanych dat,
+- prawidłową kolejność dat,
+- brak brakujących wartości,
+- zerowy błąd przy niezależnym odtworzeniu celu i baseline'u.
+
+Skrypt zakończył się komunikatem `PASS`. Sprawdza to podstawową spójność obliczeń, ale nie jest formalnym dowodem braku każdego możliwego rodzaju data leakage. Nadal kluczowe są chronologiczny podział danych i upewnienie się, że cechy są dostępne w momencie prognozy.
+
+## 14. Ograniczenia
+
+1. **Jeden instrument:** badam wyłącznie SPY, więc wynik może nie przenosić się na inne aktywa.
+2. **Jedna historia:** dane obejmują lata 2015–2025; zmiany reżimów rynkowych mogą wpływać na wyniki.
+3. **Nakładające się cele:** cele dla sąsiednich dat obejmują częściowo te same przyszłe sesje. To ogranicza niezależność obserwacji i ma znaczenie dla niepewności.
+4. **Okna nie są niezależne:** dodatkowe okna chronologiczne pochodzą z tej samej serii i częściowo nakładają się na główny okres testowy.
+5. **Eksploracyjny charakter:** hipotezy nie zostały zarejestrowane przed analizą wyników; dalsze testy na nowych danych pomogłyby ocenić ich trwałość.
+6. **Ograniczony zestaw modeli:** porównuję liniowe modele i nie przeprowadzam szerokiego strojenia hiperparametrów.
+7. **Brak testu strategii inwestycyjnej:** niższy błąd prognozy zmienności nie oznacza automatycznie zyskownej strategii po uwzględnieniu kosztów transakcyjnych i ryzyka.
+8. **Niepewność bootstrapu:** przedziały zależą od schematu losowania bloków i odnoszą się do jednego historycznego testu.
+
+## 15. Wnioski
+
+Najważniejsze wyniki są następujące:
+
+- Ridge uzyskał MAE niższy o **21,22%** od prostej metody bazowej na głównym teście.
+- Usunięcie `Volatility_20d` zwiększyło MAE o **4,28%** na głównym teście i pogorszyło wynik we wszystkich czterech dodatkowych oknach. To wspiera H1 w ramach badanego eksperymentu.
+- Ridge i zwykła regresja liniowa uzyskały niemal identyczny wynik. Blokowy bootstrap dał przedziały obejmujące zero, więc nie znalazłem przekonujących dowodów na praktyczną przewagę Ridge.
+- Błędy były znacznie większe w obserwacjach o najwyższej zrealizowanej przyszłej zmienności.
+
+Najważniejszą lekcją z projektu jest to, że dobry wynik modelu nie wyjaśnia jeszcze, dlaczego model działa. Ablacja cechy i porównanie modeli pozwoliły sprawdzić konkretne decyzje metodologiczne, a analiza niepewności pomogła uniknąć nadinterpretacji bardzo małej różnicy wyników.
+
+## 16. Dalsze kroki
+
+Najbardziej wartościowe kolejne eksperymenty to:
+
+1. Ocena modelu na innym instrumencie lub na późniejszym okresie, który nie był wykorzystywany przy wyborze modelu.
+2. Sprawdzenie stabilności wyników przy innych rozsądnych definicjach celu zmienności.
+3. Porównanie z dodatkowymi prostymi baseline'ami i modelami, przy zachowaniu tego samego chronologicznego protokołu.
+4. Jeśli projekt miałby służyć do podejmowania decyzji inwestycyjnych, osobna ocena użyteczności prognoz i kosztów wdrożenia — bez zakładania, że sam MAE świadczy o rentowności.
+
+## 17. Pliki projektu
+
+- `src/download_data.py` — pobieranie danych.
+- `src/explore_data.py` — wstępna analiza zbioru.
+- `src/analyze_returns.py` — analiza stóp zwrotu.
+- `src/prepare_features.py` — przygotowanie cech i celu.
+- `src/train_model.py` — trening modelu i główna ewaluacja.
+- `src/evaluate_results.py` — analiza wyników i wykres prognoz.
+- `src/rolling_evaluation.py` — ewaluacja pełnego modelu w kolejnych oknach.
+- `src/feature_ablation.py` — eksperyment z usunięciem `Volatility_20d`.
+- `src/model_comparison.py` — porównanie Ridge ze zwykłą regresją liniową.
+- `src/bootstrap_uncertainty.py` — blokowy bootstrap różnicy błędów.
+- `src/audit_experiment.py` — niezależny audyt obliczeń celu i baseline'u.
+
+Najważniejsze zapisane wyniki:
+
+- `reports/test_predictions.csv` — prognozy na głównym zbiorze testowym.
+- `reports/rolling_evaluation.csv` — wyniki ewaluacji chronologicznej.
+- `reports/feature_ablation_main.csv` i `reports/feature_ablation_rolling.csv` — wyniki ablacji cechy.
+- `reports/model_comparison_main.csv` i `reports/model_comparison_rolling.csv` — porównanie regresji liniowej i Ridge.
+- `reports/model_comparison_test_predictions.csv` — predykcje obu modeli na głównym teście.
+- `reports/bootstrap_uncertainty.csv` — wyniki analizy niepewności bootstrapem.
