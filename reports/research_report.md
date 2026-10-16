@@ -59,19 +59,15 @@ Wyniki dotyczą jednego instrumentu i jednego zakresu historycznego. Nie zakład
 
 Na podstawie cen obliczam dzienne stopy zwrotu:
 
-\[
-
+$$
 r_t = \frac{P_t}{P_{t-1}} - 1
-
-\]
+$$
 
 Celem prognozy jest pierwiastek z sumy kwadratów stóp zwrotu z kolejnych pięciu sesji:
 
-\[
-
+$$
 Y_t = \sqrt{\sum_{i=1}^{5} r_{t+i}^{2}}
-
-\]
+$$
 
 Miara ta opisuje łączną wielkość ruchów cen w przyszłym pięciosesyjnym okresie. Jest to **pięciosesyjna miara RSS**, a nie klasyczne odchylenie standardowe ani prognoza kierunku ceny.
 
