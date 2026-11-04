@@ -44,6 +44,14 @@ Jego amplitudy to `[1/√2, 0, 0, 1/√2]`, a prawdopodobieństwa wyników to `[
 
 Trójkubitowy stan GHZ można przygotować przez H na `q0` oraz CNOT z `q0` do `q1` i z `q0` do `q2`. Otrzymany stan to `(|000> + |111>)/√2`, więc pomiar całego rejestru zwraca `"000"` albo `"111"`.
 
+## Samodzielnie pogłębione zagadnienie po wykładzie
+
+Po wykładzie szczególnie zainteresowały mnie algorytmy kwantowe, dlatego samodzielnie poznałem zasady działania algorytmów Grovera i Shora.
+
+Dowiedziałem się, że algorytm Grovera wykorzystuje interferencję i wzmacnianie amplitud do zwiększania prawdopodobieństwa znalezienia poszukiwanego rozwiązania, natomiast algorytm Shora wykorzystuje kwantowe znajdowanie okresu oraz klasyczne obliczenia do efektywnego rozkładu liczb na czynniki pierwsze.
+
+Najbardziej zaciekawiło mnie to, w jaki sposób superpozycja, interferencja i bramki kwantowe pozwalają budować algorytmy różniące się od klasycznych. Nie implementowałem jeszcze algorytmów Grovera ani Shora — w tym wyzwaniu skupiłem się na zrozumieniu ich zasad działania i stworzeniu własnego symulatora podstawowych bramek kwantowych.
+
 ## Instalacja i uruchamianie
 
 Wymagane są Python 3 i NumPy. W PowerShell, z katalogu głównego repozytorium, można utworzyć środowisko wirtualne i zainstalować zależność:
